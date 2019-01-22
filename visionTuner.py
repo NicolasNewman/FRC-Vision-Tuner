@@ -13,11 +13,22 @@ class OpenCVThread(QThread):
         self.ui = parent
         self.mode = mode
         self.deleted = False
+        self.updated = False
+        self.imgIndx = 0
 
         self.folderMax = self.ui.findChild(QLabel, 'labelFolderMax')
         self.folderSelected = self.ui.findChild(QLabel, 'labelFolderSelected')
+        self.folderSelected.setText('1')
+        
         self.folderSelect = self.ui.findChild(QSlider, 'sliderFolderSelect')
+        self.folderSelect.valueChanged.connect(self.valueChanged)
     
+    def valueChanged(self):
+        indx = self.folderSelect.value()
+        self.imgIndx = indx
+        self.folderSelected.setText(str(indx+1))
+        self.updated = False
+
     def run(self):
         self.deleted = False
         if self.mode == "Video":
@@ -31,19 +42,18 @@ class OpenCVThread(QThread):
         elif self.mode == "Folder":
             imgPaths = glob.glob("../img/*.jpg")
             folderSize = len(imgPaths)
-            i = 0
-            updated = False
+            self.folderMax.setText(str(folderSize))
+            self.folderSelect.setMaximum(folderSize-1)
             while self.deleted is False:
-                if updated is False:
-                    bgr_frame = cv2.imread(imgPaths[i])
+                if self.updated is False:
+                    bgr_frame = cv2.imread(imgPaths[self.imgIndx])
                     rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
                     
                     convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
                     p = convertToQtFormat.scaled(480, 360)
                     self.imageSignal.emit(p)
-                    updated = True
+                    self.updated = True
     
-                    self.folderMax.setText(str(folderSize))
                 
                 
     
