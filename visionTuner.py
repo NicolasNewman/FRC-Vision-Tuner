@@ -5,6 +5,7 @@ from PyQt5.QtGui import QImage, QPixmap
 import sys
 import glob
 import cv2
+import numpy as np
 
 class OpenCVThread(QThread):
     imageSignal = pyqtSignal(QImage)
@@ -21,12 +22,45 @@ class OpenCVThread(QThread):
         self.folderSelected.setText('1')
         
         self.folderSelect = self.ui.findChild(QSlider, 'sliderFolderSelect')
-        self.folderSelect.valueChanged.connect(self.valueChanged)
+        self.folderSelect.valueChanged.connect(self.indxSliderChanged)
+
+
+        self.hh = [self.ui.findChild(QSlider, 'sliderHSV_HH'), 255]
+        self.hhl = self.ui.findChild(QLabel, 'labelHSV_HH')
+        self.hh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.hh, self.hhl))
+        
+        self.hl = [self.ui.findChild(QSlider, 'sliderHSV_HL'), 0]
+        self.hll = self.ui.findChild(QLabel, 'labelHSV_HL')
+        self.hl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.hl, self.hll))
+
+
+        self.sh = [self.ui.findChild(QSlider, 'sliderHSV_SH'), 255]
+        self.shl = self.ui.findChild(QLabel, 'labelHSV_SH')
+        self.sh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sh, self.shl))
+
+        self.sl = [self.ui.findChild(QSlider, 'sliderHSV_SL'), 0]
+        self.sll = self.ui.findChild(QLabel, 'labelHSV_SL')
+        self.sl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sl, self.sll))
+
+
+        self.vh = [self.ui.findChild(QSlider, 'sliderHSV_VH'), 255]
+        self.vhl = self.ui.findChild(QLabel, 'labelHSV_VH')
+        self.vh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vh, self.vhl))
+
+        self.vl = [self.ui.findChild(QSlider, 'sliderHSV_VL'), 0]
+        self.vll = self.ui.findChild(QLabel, 'labelHSV_VL')
+        self.vl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vl, self.vll))
     
-    def valueChanged(self):
+    def indxSliderChanged(self):
         indx = self.folderSelect.value()
         self.imgIndx = indx
         self.folderSelected.setText(str(indx+1))
+        self.updated = False
+    
+    def hsvSliderChanged(self, slider, label):
+        sliderVal = slider[0].value()
+        slider[1] = sliderVal
+        label.setText(str(sliderVal))
         self.updated = False
 
     def run(self):
@@ -35,6 +69,17 @@ class OpenCVThread(QThread):
             cap = cv2.VideoCapture(0)
             while self.deleted is False:
                 ret, bgr_frame = cap.read()
+
+                hsv_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
+
+                highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
+                lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
+                mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
+
+                _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  
+                
+                cv2.drawContours(bgr_frame, contours, -1, (0, 0, 255), 2)   
+
                 rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
                 convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
                 p = convertToQtFormat.scaled(480, 360)
@@ -47,8 +92,17 @@ class OpenCVThread(QThread):
             while self.deleted is False:
                 if self.updated is False:
                     bgr_frame = cv2.imread(imgPaths[self.imgIndx])
-                    rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
+                    hsv_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
+
+                    highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
+                    lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
+                    mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
+
+                    _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  
                     
+                    cv2.drawContours(bgr_frame, contours, -1, (0, 0, 255), 2)   
+                    
+                    rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
                     convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
                     p = convertToQtFormat.scaled(480, 360)
                     self.imageSignal.emit(p)
