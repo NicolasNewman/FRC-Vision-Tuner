@@ -28,34 +28,43 @@ class OpenCVThread(QThread):
         self.folderButton = self.ui.findChild(QPushButton, 'buttonFolderSelect')
         self.folderButton.clicked.connect(self.selectFolder)
 
-        self.hh = [self.ui.findChild(QSlider, 'sliderHSV_HH'), 255]
+        self.folderLabel = self.ui.findChild(QLabel, 'labelFolderDir')
+
+        self.hh = [self.ui.findChild(QSlider, 'sliderHSV_HH'), self.ui.findChild(QSlider, 'sliderHSV_HH').value()]
         self.hhl = self.ui.findChild(QLabel, 'labelHSV_HH')
+        self.hhl.setText(str(self.hh[1]))
         self.hh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.hh, self.hhl))
         
-        self.hl = [self.ui.findChild(QSlider, 'sliderHSV_HL'), 0]
+        self.hl = [self.ui.findChild(QSlider, 'sliderHSV_HL'), self.ui.findChild(QSlider, 'sliderHSV_HL').value()]
         self.hll = self.ui.findChild(QLabel, 'labelHSV_HL')
+        self.hll.setText(str(self.hl[1]))
         self.hl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.hl, self.hll))
 
 
-        self.sh = [self.ui.findChild(QSlider, 'sliderHSV_SH'), 255]
+        self.sh = [self.ui.findChild(QSlider, 'sliderHSV_SH'), self.ui.findChild(QSlider, 'sliderHSV_SH').value()]
         self.shl = self.ui.findChild(QLabel, 'labelHSV_SH')
+        self.shl.setText(str(self.sh[1]))
         self.sh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sh, self.shl))
 
-        self.sl = [self.ui.findChild(QSlider, 'sliderHSV_SL'), 0]
+        self.sl = [self.ui.findChild(QSlider, 'sliderHSV_SL'), self.ui.findChild(QSlider, 'sliderHSV_SL').value()]
         self.sll = self.ui.findChild(QLabel, 'labelHSV_SL')
+        self.sll.setText(str(self.sl[1]))
         self.sl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sl, self.sll))
 
 
-        self.vh = [self.ui.findChild(QSlider, 'sliderHSV_VH'), 255]
+        self.vh = [self.ui.findChild(QSlider, 'sliderHSV_VH'), self.ui.findChild(QSlider, 'sliderHSV_VH').value()]
         self.vhl = self.ui.findChild(QLabel, 'labelHSV_VH')
+        self.vhl.setText(str(self.vh[1]))
         self.vh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vh, self.vhl))
 
-        self.vl = [self.ui.findChild(QSlider, 'sliderHSV_VL'), 0]
+        self.vl = [self.ui.findChild(QSlider, 'sliderHSV_VL'), self.ui.findChild(QSlider, 'sliderHSV_VL').value()]
         self.vll = self.ui.findChild(QLabel, 'labelHSV_VL')
+        self.vll.setText(str(self.vl[1]))
         self.vl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vl, self.vll))
     
     def selectFolder(self):
-        self.directory = str(QFileDialog.getExistingDirectory(None, "Select Directory"))
+        self.directory = str(QFileDialog.getExistingDirectory(None, "Select Image Directory")) + "/"
+        self.folderLabel.setText(self.directory)
 
     def indxSliderChanged(self):
         indx = self.folderSelect.value()
@@ -75,45 +84,36 @@ class OpenCVThread(QThread):
             cap = cv2.VideoCapture(0)
             while self.deleted is False:
                 ret, bgr_frame = cap.read()
+                self.processImage(bgr_frame)
 
-                hsv_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
-
-                highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
-                lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
-                mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
-
-                _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  
-                
-                cv2.drawContours(bgr_frame, contours, -1, (0, 0, 255), 2)   
-
-                rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-                convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
-                p = convertToQtFormat.scaled(480, 360)
-                self.imageSignal.emit(p)
         elif self.mode == "Folder":
-            imgPaths = glob.glob(self.directory)
+            imgPaths = glob.glob(self.directory + "*.jpg")
+            imgPaths.extend(glob.glob(self.directory + "*.png"))
             folderSize = len(imgPaths)
             self.folderMax.setText(str(folderSize))
             self.folderSelect.setMaximum(folderSize-1)
             while self.deleted is False:
                 if self.updated is False:
                     bgr_frame = cv2.imread(imgPaths[self.imgIndx])
-                    hsv_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2HSV)
-
-                    highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
-                    lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
-                    mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
-
-                    _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  
-                    
-                    cv2.drawContours(bgr_frame, contours, -1, (0, 0, 255), 2)   
-                    
-                    rgb_frame = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2RGB)
-                    convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
-                    p = convertToQtFormat.scaled(480, 360)
-                    self.imageSignal.emit(p)
+                    self.processImage(bgr_frame)
                     self.updated = True
     
+    def processImage(self, img):
+        hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
+        lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
+        mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
+
+        _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  
+        
+        cv2.drawContours(img, contours, -1, (0, 0, 255), 2)   
+        
+        rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
+        p = convertToQtFormat.scaled(480, 360)
+        
+        self.imageSignal.emit(p)
                 
                 
     
@@ -151,7 +151,7 @@ class VisionTuner(QMainWindow):
         self.videoSource.setPixmap(QPixmap.fromImage(image))
     
     def load_cv(self):
-        # self.cvThread = OpenCVThread(self, "None")
+        self.cvThread = OpenCVThread(self, "None")
         pass
 
     def signal_comboSourceChanged(self, value):
