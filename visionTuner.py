@@ -1,5 +1,5 @@
 from PyQt5.uic import loadUi
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QVBoxLayout, QHBoxLayout, QSlider
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QVBoxLayout, QHBoxLayout, QSlider, QPushButton, QFileDialog
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent
 from PyQt5.QtGui import QImage, QPixmap
 import sys
@@ -16,6 +16,7 @@ class OpenCVThread(QThread):
         self.deleted = False
         self.updated = False
         self.imgIndx = 0
+        self.directory = "img/"
 
         self.folderMax = self.ui.findChild(QLabel, 'labelFolderMax')
         self.folderSelected = self.ui.findChild(QLabel, 'labelFolderSelected')
@@ -24,6 +25,8 @@ class OpenCVThread(QThread):
         self.folderSelect = self.ui.findChild(QSlider, 'sliderFolderSelect')
         self.folderSelect.valueChanged.connect(self.indxSliderChanged)
 
+        self.folderButton = self.ui.findChild(QPushButton, 'buttonFolderSelect')
+        self.folderButton.clicked.connect(self.selectFolder)
 
         self.hh = [self.ui.findChild(QSlider, 'sliderHSV_HH'), 255]
         self.hhl = self.ui.findChild(QLabel, 'labelHSV_HH')
@@ -51,6 +54,9 @@ class OpenCVThread(QThread):
         self.vll = self.ui.findChild(QLabel, 'labelHSV_VL')
         self.vl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vl, self.vll))
     
+    def selectFolder(self):
+        self.directory = str(QFileDialog.getExistingDirectory(None, "Select Directory"))
+
     def indxSliderChanged(self):
         indx = self.folderSelect.value()
         self.imgIndx = indx
@@ -85,7 +91,7 @@ class OpenCVThread(QThread):
                 p = convertToQtFormat.scaled(480, 360)
                 self.imageSignal.emit(p)
         elif self.mode == "Folder":
-            imgPaths = glob.glob("../img/*.jpg")
+            imgPaths = glob.glob(self.directory)
             folderSize = len(imgPaths)
             self.folderMax.setText(str(folderSize))
             self.folderSelect.setMaximum(folderSize-1)
