@@ -17,6 +17,7 @@ class OpenCVThread(QThread):
         self.updated = False
         self.imgIndx = 0
         self.directory = "img/"
+        self.aspect = "N/A"
 
         self.folderMax = self.ui.findChild(QLabel, 'labelFolderMax')
         self.folderSelected = self.ui.findChild(QLabel, 'labelFolderSelected')
@@ -73,6 +74,29 @@ class OpenCVThread(QThread):
         self.solHl.setText(str(self.solH[1]))
         self.solH[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.solH, self.solHl))
     
+        self.extL = [self.ui.findChild(QSlider, 'sliderEL'), self.ui.findChild(QSlider, 'sliderEL').value()]
+        self.extLl = self.ui.findChild(QLabel, 'labelEL')
+        self.extLl.setText(str(self.extL[1]))
+        self.extL[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.extL, self.extLl))
+        
+        self.extH = [self.ui.findChild(QSlider, 'sliderEH'), self.ui.findChild(QSlider, 'sliderEH').value()/100.0]
+        self.extHl = self.ui.findChild(QLabel, 'labelEH')
+        self.extHl.setText(str(self.extH[1]))
+        self.extH[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.extH, self.extHl))
+
+        self.oriL = [self.ui.findChild(QSlider, 'sliderOL'), self.ui.findChild(QSlider, 'sliderOL').value()]
+        self.oriLl = self.ui.findChild(QLabel, 'labelOL')
+        self.oriLl.setText(str(self.oriL[1]))
+        self.oriL[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.oriL, self.oriLl))
+        
+        self.oriH = [self.ui.findChild(QSlider, 'sliderOH'), self.ui.findChild(QSlider, 'sliderOH').value()]
+        self.oriHl = self.ui.findChild(QLabel, 'labelOH')
+        self.oriHl.setText(str(self.oriH[1]))
+        self.oriH[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.oriH, self.oriHl))
+        
+        self.comboAspect = self.ui.findChild(QComboBox, 'comboAspect')
+        self.comboAspect.currentTextChanged.connect(self.aspectComboChanged)
+
     def selectFolder(self):
         self.directory = str(QFileDialog.getExistingDirectory(None, "Select Image Directory")) + "/"
         self.folderLabel.setText(self.directory)
@@ -93,6 +117,10 @@ class OpenCVThread(QThread):
         sliderVal = slider[0].value() / 100.0
         slider[1] = sliderVal
         label.setText(str(sliderVal))
+        self.updated = False
+
+    def aspectComboChanged(self):
+        self.aspect = self.comboAspect.currentText()
         self.updated = False
 
     def run(self):
@@ -128,16 +156,34 @@ class OpenCVThread(QThread):
         # cv2.drawContours(img, contours, -1, (0, 0, 255), 2)  
         print("-----------") 
         for cnt in contours:
-            area = cv2.contourArea(cnt)
-            hull = cv2.convexHull(cnt)
-            hull_area = cv2.contourArea(hull)
-            solidity = 0
-            if hull_area != 0:
-                solidity = float(area)/hull_area
-            print("{} <= {} <= {}".format(self.solL[1], solidity, self.solH[1]))
+            solidity = self.getSolidity(cnt)
+            extent = self.getExtent(cnt)
+            aspect = self.getAspectRatio(cnt)
+            orientation = self.getOrientation(cnt)
+            # print("{} <= {} <= {}".format(self.solL[1], solidity, self.solH[1]))
             if self.solL[1] <= solidity <= self.solH[1]:
-                cv2.drawContours(img, cnt, -1, (0, 255, 0), 2)     
-                print("pass")
+                if self.extL[1] <= extent <= self.extH[1]:
+                    if orientation is None or (self.oriL[1] <= orientation <= self.oriH[1]): # option to ignore none
+                        if self.aspect == ">" and aspect > 1:
+                            print(">")
+                            cv2.drawContours(img, cnt, -1, (0, 255, 0), 2) 
+                        elif self.aspect == "<" and aspect < 1:
+                            print("<")
+                            cv2.drawContours(img, cnt, -1, (0, 255, 0), 2)
+                        elif self.aspect == "N/A":
+                            cv2.drawContours(img, cnt, -1, (0, 255, 0), 2)
+
+                    # # orientation
+                    # if (len(cnt) >= 5):
+                    #     (x,y),(MA,ma),angle = cv2.fitEllipse(cnt)
+                    #     print(angle)
+                    
+                    # # aspect ratio
+                    # x,y,w,h = cv2.boundingRect(cnt)
+                    # if h != 0:
+                    #     aspect_ratio = float(w)/h
+                    #     print(aspect_ratio)    
+                # print("pass")
         
         rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         res = cv2.bitwise_and(rgb_frame, rgb_frame, mask= mask)
@@ -146,7 +192,35 @@ class OpenCVThread(QThread):
         
         self.imageSignal.emit(p)             
     
-    def __delete__(self):
+    def getSolidity(self, cnt):
+        area = cv2.contourArea(cnt)
+        hull = cv2.convexHull(cnt)
+        hull_area = cv2.contourArea(hull)
+        if hull_area != 0:
+           return float(area)/hull_area
+        return 0
+    
+    def getExtent(self, cnt):
+        area = cv2.contourArea(cnt)
+        x,y,w,h = cv2.boundingRect(cnt)
+        rect_area = w*h
+        if rect_area != 0:
+            return float(area)/rect_area
+        return 0
+
+    def getAspectRatio(self, cnt):
+        x,y,w,h = cv2.boundingRect(cnt)
+        if h != 0:
+            return float(w)/h
+        return None
+    
+    def getOrientation(self, cnt):
+        if (len(cnt) >= 5):
+            (x,y),(MA,ma),angle = cv2.fitEllipse(cnt)
+            return angle
+        return None
+
+    def delete(self):
         self.deleted = True
         self.quit()
         self.wait()
@@ -185,7 +259,7 @@ class VisionTuner(QMainWindow):
 
     def signal_comboSourceChanged(self, value):
         if hasattr(self, 'cvThread'):
-            self.cvThread.__delete__()
+            self.cvThread.delete()
         if value == "Video":
             self.layout_toggle(self.layoutVideo, True)
             self.layout_toggle(self.layoutFolder, False)
