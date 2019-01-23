@@ -4,6 +4,7 @@ from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent
 from PyQt5.QtGui import QImage, QPixmap
 import sys
 import glob
+import math
 import cv2
 import numpy as np
 
@@ -163,34 +164,39 @@ class OpenCVThread(QThread):
             # print("{} <= {} <= {}".format(self.solL[1], solidity, self.solH[1]))
             if self.solL[1] <= solidity <= self.solH[1]:
                 if self.extL[1] <= extent <= self.extH[1]:
-                    if orientation is None or (self.oriL[1] <= orientation <= self.oriH[1]): # option to ignore none
+                    if orientation is not None and (self.oriL[1] <= orientation <= self.oriH[1]): # option to ignore none
                         if self.aspect == ">" and aspect > 1:
-                            print(">")
-                            cv2.drawContours(img, cnt, -1, (0, 255, 0), 2) 
+                            cv2.drawContours(img, cnt, -1, (0, 0, 255), 2) 
+                            self.drawAngles(cnt, img, orientation)
                         elif self.aspect == "<" and aspect < 1:
-                            print("<")
-                            cv2.drawContours(img, cnt, -1, (0, 255, 0), 2)
+                            cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                            self.drawAngles(cnt, img, orientation)
                         elif self.aspect == "N/A":
-                            cv2.drawContours(img, cnt, -1, (0, 255, 0), 2)
+                            cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                            self.drawAngles(cnt, img, orientation)
 
-                    # # orientation
-                    # if (len(cnt) >= 5):
-                    #     (x,y),(MA,ma),angle = cv2.fitEllipse(cnt)
-                    #     print(angle)
-                    
-                    # # aspect ratio
-                    # x,y,w,h = cv2.boundingRect(cnt)
-                    # if h != 0:
-                    #     aspect_ratio = float(w)/h
-                    #     print(aspect_ratio)    
-                # print("pass")
-        
         rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        res = cv2.bitwise_and(rgb_frame, rgb_frame, mask= mask)
-        convertToQtFormat = QImage(res, res.shape[1], res.shape[0], res.shape[1] * 3, QImage.Format_RGB888)
+        # res = cv2.bitwise_and(rgb_frame, rgb_frame, mask= mask)
+        convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
         p = convertToQtFormat.scaled(480, 360)
         
-        self.imageSignal.emit(p)             
+        self.imageSignal.emit(p)  
+
+    def drawAngles(self, cnt, img, orientation):
+        M = cv2.moments(cnt)
+        x,y,w,h = cv2.boundingRect(cnt)
+        if M['m00'] != 0:
+            print(orientation)
+            cx = int(M['m10']/M['m00'])
+            cy = int(M['m01']/M['m00'])
+            orientationRad = (orientation+270) * (math.pi / 180)
+            length = 30
+            cv2.line(img,(cx,cy),(int(cx+length*math.cos(orientationRad)),int(cy+length*math.sin(orientationRad))),(255,0,0),2)
+            height, width = img.shape[:2]
+            if cx > width/2:
+                cv2.putText(img, str(int(orientation)), (cx-int(w/2), cy-int(h/2)), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1, cv2.LINE_AA)
+            else:
+                cv2.putText(img, str(int(orientation)), (cx, cy-int(h/2)), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1, cv2.LINE_AA)
     
     def getSolidity(self, cnt):
         area = cv2.contourArea(cnt)
