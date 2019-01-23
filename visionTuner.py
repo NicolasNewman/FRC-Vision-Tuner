@@ -61,6 +61,17 @@ class OpenCVThread(QThread):
         self.vll = self.ui.findChild(QLabel, 'labelHSV_VL')
         self.vll.setText(str(self.vl[1]))
         self.vl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vl, self.vll))
+
+        
+        self.solL = [self.ui.findChild(QSlider, 'sliderSL'), self.ui.findChild(QSlider, 'sliderSL').value()]
+        self.solLl = self.ui.findChild(QLabel, 'labelSL')
+        self.solLl.setText(str(self.solL[1]))
+        self.solL[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.solL, self.solLl))
+        
+        self.solH = [self.ui.findChild(QSlider, 'sliderSH'), self.ui.findChild(QSlider, 'sliderSH').value()/100.0]
+        self.solHl = self.ui.findChild(QLabel, 'labelSH')
+        self.solHl.setText(str(self.solH[1]))
+        self.solH[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.solH, self.solHl))
     
     def selectFolder(self):
         self.directory = str(QFileDialog.getExistingDirectory(None, "Select Image Directory")) + "/"
@@ -74,6 +85,12 @@ class OpenCVThread(QThread):
     
     def hsvSliderChanged(self, slider, label):
         sliderVal = slider[0].value()
+        slider[1] = sliderVal
+        label.setText(str(sliderVal))
+        self.updated = False
+    
+    def ratioSliderChanged(self, slider, label):
+        sliderVal = slider[0].value() / 100.0
         slider[1] = sliderVal
         label.setText(str(sliderVal))
         self.updated = False
@@ -105,17 +122,29 @@ class OpenCVThread(QThread):
         lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
         mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
 
-        _, contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  
+        _, contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
         
-        cv2.drawContours(img, contours, -1, (0, 0, 255), 2)   
+        # cv2.drawContours(img, contours, -1, (0, 0, 255), 2)  
+        print("-----------") 
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            hull = cv2.convexHull(cnt)
+            hull_area = cv2.contourArea(hull)
+            solidity = 0
+            if hull_area != 0:
+                solidity = float(area)/hull_area
+            print("{} <= {} <= {}".format(self.solL[1], solidity, self.solH[1]))
+            if self.solL[1] <= solidity <= self.solH[1]:
+                cv2.drawContours(img, cnt, -1, (0, 255, 0), 2)     
+                print("pass")
         
         rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
+        res = cv2.bitwise_and(rgb_frame, rgb_frame, mask= mask)
+        convertToQtFormat = QImage(res, res.shape[1], res.shape[0], res.shape[1] * 3, QImage.Format_RGB888)
         p = convertToQtFormat.scaled(480, 360)
         
-        self.imageSignal.emit(p)
-                
-                
+        self.imageSignal.emit(p)             
     
     def __delete__(self):
         self.deleted = True
