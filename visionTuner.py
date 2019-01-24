@@ -5,6 +5,7 @@ from PyQt5.QtGui import QImage, QPixmap
 import sys
 import glob
 import math
+import threading
 import cv2
 import numpy as np
 
@@ -147,7 +148,6 @@ class OpenCVThread(QThread):
     
     def addAngleClicked(self):
         angleText = self.editAddAngle.text()
-        print("Here")
         if len(angleText) > 0:
             self.listAngle.addItems([angleText])
         self.updated = False
@@ -160,7 +160,7 @@ class OpenCVThread(QThread):
         self.updated = False
 
     def run(self):
-        self.deleted = False
+        # self.deleted = False
         if self.mode == "Video":
             cap = cv2.VideoCapture(0)
             while self.deleted is False:
@@ -178,7 +178,6 @@ class OpenCVThread(QThread):
                     bgr_frame = cv2.imread(imgPaths[self.imgIndx])
                     self.processImage(bgr_frame)
                     self.updated = True
-        print("Exited loop")
     
     def processImage(self, img):
         hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -267,9 +266,7 @@ class OpenCVThread(QThread):
     def validAngle(self, orientation):
         try:
             angleList =  [int(self.listAngle.item(i).text()) for i in range(self.listAngle.count())]
-            print(angleList)
             angleTolerance = int(self.editAngle.text())
-            print(angleTolerance)
             if len(angleList) >= 1:
                 for angle in angleList:
                     if abs(angle - orientation) <= angleTolerance:
@@ -281,11 +278,20 @@ class OpenCVThread(QThread):
         except TypeError:
             return True
 
-    def delete(self):
+    def pauseThread(self):
         self.deleted = True
-        self.ui = None
-        self.quit()
-        self.wait()
+    
+    def continueThread(self):
+        t = threading.Timer(.5,self.enableThread,args=[])
+        t.start()
+    
+    def enableThread(self):
+        self.deleted = False
+        self.updated = False
+        self.start()
+    
+    def setMode(self, mode):
+        self.mode = mode
 
 class VisionTuner(QMainWindow):
 
@@ -316,26 +322,30 @@ class VisionTuner(QMainWindow):
         self.videoSource.setPixmap(QPixmap.fromImage(image))
     
     def load_cv(self):
-        self.cvThread = OpenCVThread(self, "None")
+        self.cvThread = OpenCVThread(self, "Folder")
+        self.cvThread.imageSignal.connect(self.setImage)
         pass
 
     def signal_comboSourceChanged(self, value):
-        if hasattr(self, 'cvThread'):
-            self.cvThread.delete()
+        # if hasattr(self, 'cvThread'):
+        #     self.cvThread.pauseThread()
+        self.cvThread.pauseThread()
         if value == "Video":
             self.layout_toggle(self.layoutVideo, True)
             self.layout_toggle(self.layoutFolder, False)
 
-            self.cvThread = OpenCVThread(self.ui, "Video")
-            self.cvThread.imageSignal.connect(self.setImage)
-            self.cvThread.start()
+            # self.cvThread.imageSignal.connect(self.setImage)
+            self.cvThread.setMode("Video")
+            self.cvThread.continueThread()
+            # self.cvThread.start()
         elif value == "Folder":
             self.layout_toggle(self.layoutVideo, False)
             self.layout_toggle(self.layoutFolder, True)
 
-            self.cvThread = OpenCVThread(self.ui, "Folder")
-            self.cvThread.imageSignal.connect(self.setImage)
-            self.cvThread.start()
+            # self.cvThread.imageSignal.connect(self.setImage)
+            self.cvThread.setMode("Folder")
+            self.cvThread.continueThread()
+            # self.cvThread.start()
         elif value == "None":
             self.layout_toggle(self.layoutVideo, False)
             self.layout_toggle(self.layoutFolder, False)
