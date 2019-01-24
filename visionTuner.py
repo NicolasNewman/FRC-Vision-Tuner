@@ -108,31 +108,39 @@ class OpenCVThread(QThread):
         self.checkAngle.stateChanged.connect(self.checkboxChanged)
 
         self.editAngle = self.ui.findChild(QLineEdit, 'editAngle')
+        self.editAngle.returnPressed.connect(self.signalUpdate)
         self.listAngle = self.ui.findChild(QListWidget, 'listAngle')
 
         self.editAddAngle = self.ui.findChild(QLineEdit, 'editAddAngle')
+
         self.buttonAddAngle = self.ui.findChild(QPushButton, 'buttonAddAngle')
         self.buttonAddAngle.clicked.connect(self.addAngleClicked)
         self.buttonRemoveAngle = self.ui.findChild(QPushButton, 'buttonRemoveAngle')
         self.buttonRemoveAngle.clicked.connect(self.removeAngleClicked)
 
+    def signalUpdate(self):
+        self.updated = False
 
+    # Called when the select folder button is clicked
     def selectFolder(self):
         self.directory = str(QFileDialog.getExistingDirectory(None, "Select Image Directory")) + "/"
         self.folderLabel.setText(self.directory)
 
+    # Called when the slider for selecting an image is changed
     def indxSliderChanged(self):
         indx = self.folderSelect.value()
         self.imgIndx = indx
         self.folderSelected.setText(str(indx+1))
         self.updated = False
     
+    # Called when an RGB slider is changed (to lazy to rename)
     def hsvSliderChanged(self, slider, label):
         sliderVal = slider[0].value()
         slider[1] = sliderVal
         label.setText(str(sliderVal))
         self.updated = False
     
+    # Called when a slider that is continuous is changed
     def ratioSliderChanged(self, slider, label):
         sliderVal = slider[0].value() / 100.0
         slider[1] = sliderVal
@@ -142,16 +150,19 @@ class OpenCVThread(QThread):
     def aspectComboChanged(self):
         self.aspect = self.comboAspect.currentText()
         self.updated = False
-    
+
+    # If a checkbox is changed, signal an update    
     def checkboxChanged(self):
         self.updated = False
     
+    # If the button to add an angle to the list view is clicked
     def addAngleClicked(self):
         angleText = self.editAddAngle.text()
         if len(angleText) > 0:
             self.listAngle.addItems([angleText])
         self.updated = False
     
+    # If an angle is selected and remove is clicked
     def removeAngleClicked(self):
         items = self.listAngle.selectedItems()
 
@@ -159,8 +170,8 @@ class OpenCVThread(QThread):
             self.listAngle.takeItem(self.listAngle.row(i))
         self.updated = False
 
+    # Main loop for the thread
     def run(self):
-        # self.deleted = False
         if self.mode == "Video":
             cap = cv2.VideoCapture(0)
             while self.deleted is False:
@@ -179,6 +190,7 @@ class OpenCVThread(QThread):
                     self.processImage(bgr_frame)
                     self.updated = True
     
+    # Processes the given image and signals the main thread of the change
     def processImage(self, img):
         hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -220,6 +232,7 @@ class OpenCVThread(QThread):
         
         self.imageSignal.emit(p)  
 
+    # Draws the angle of the orientation for each contour
     def drawAngles(self, cnt, img, orientation):
         M = cv2.moments(cnt)
         x,y,w,h = cv2.boundingRect(cnt)
@@ -235,6 +248,7 @@ class OpenCVThread(QThread):
             else:
                 cv2.putText(img, str(int(orientation)), (cx, cy-int(h/2)), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1, cv2.LINE_AA)
     
+    # Returns the solidity of a contour (ratio of area to convex hull)
     def getSolidity(self, cnt):
         area = cv2.contourArea(cnt)
         hull = cv2.convexHull(cnt)
@@ -243,6 +257,7 @@ class OpenCVThread(QThread):
            return float(area)/hull_area
         return 0
     
+    # Returns the extent of a contour (ratio of area to bounding rectangle area)
     def getExtent(self, cnt):
         area = cv2.contourArea(cnt)
         x,y,w,h = cv2.boundingRect(cnt)
@@ -251,6 +266,7 @@ class OpenCVThread(QThread):
             return float(area)/rect_area
         return 0
 
+    # Returns the aspect ratio of a contour (ratio of width to height)
     def getAspectRatio(self, cnt):
         x,y,w,h = cv2.boundingRect(cnt)
         if h != 0:
@@ -263,6 +279,7 @@ class OpenCVThread(QThread):
             return angle
         return None
     
+    # Determines if an angle is valid based on the list and tolerance value
     def validAngle(self, orientation):
         try:
             angleList =  [int(self.listAngle.item(i).text()) for i in range(self.listAngle.count())]
