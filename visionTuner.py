@@ -11,7 +11,7 @@ import numpy as np
 class OpenCVThread(QThread):
     imageSignal = pyqtSignal(QImage)
     def __init__(self, parent=None, mode="None"):
-        QThread.__init__(self, parent)
+        QThread.__init__(self)
         self.ui = parent
         self.mode = mode
         self.deleted = False
@@ -147,14 +147,17 @@ class OpenCVThread(QThread):
     
     def addAngleClicked(self):
         angleText = self.editAddAngle.text()
+        print("Here")
         if len(angleText) > 0:
             self.listAngle.addItems([angleText])
+        self.updated = False
     
     def removeAngleClicked(self):
         items = self.listAngle.selectedItems()
 
         for i in items:
             self.listAngle.takeItem(self.listAngle.row(i))
+        self.updated = False
 
     def run(self):
         self.deleted = False
@@ -175,6 +178,7 @@ class OpenCVThread(QThread):
                     bgr_frame = cv2.imread(imgPaths[self.imgIndx])
                     self.processImage(bgr_frame)
                     self.updated = True
+        print("Exited loop")
     
     def processImage(self, img):
         hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -263,7 +267,9 @@ class OpenCVThread(QThread):
     def validAngle(self, orientation):
         try:
             angleList =  [int(self.listAngle.item(i).text()) for i in range(self.listAngle.count())]
+            print(angleList)
             angleTolerance = int(self.editAngle.text())
+            print(angleTolerance)
             if len(angleList) >= 1:
                 for angle in angleList:
                     if abs(angle - orientation) <= angleTolerance:
@@ -272,9 +278,12 @@ class OpenCVThread(QThread):
             return True
         except ValueError:
             return True
+        except TypeError:
+            return True
 
     def delete(self):
         self.deleted = True
+        self.ui = None
         self.quit()
         self.wait()
 
