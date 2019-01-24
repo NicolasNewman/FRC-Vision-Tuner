@@ -1,5 +1,5 @@
 from PyQt5.uic import loadUi
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QVBoxLayout, QHBoxLayout, QSlider, QPushButton, QFileDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QVBoxLayout, QHBoxLayout, QSlider, QPushButton, QFileDialog, QCheckBox, QLineEdit, QListWidget
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent
 from PyQt5.QtGui import QImage, QPixmap
 import sys
@@ -32,6 +32,7 @@ class OpenCVThread(QThread):
 
         self.folderLabel = self.ui.findChild(QLabel, 'labelFolderDir')
 
+        # HSV Sliders
         self.hh = [self.ui.findChild(QSlider, 'sliderHSV_HH'), self.ui.findChild(QSlider, 'sliderHSV_HH').value()]
         self.hhl = self.ui.findChild(QLabel, 'labelHSV_HH')
         self.hhl.setText(str(self.hh[1]))
@@ -65,6 +66,7 @@ class OpenCVThread(QThread):
         self.vl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vl, self.vll))
 
         
+        # Solidity sliders
         self.solL = [self.ui.findChild(QSlider, 'sliderSL'), self.ui.findChild(QSlider, 'sliderSL').value()]
         self.solLl = self.ui.findChild(QLabel, 'labelSL')
         self.solLl.setText(str(self.solL[1]))
@@ -74,7 +76,8 @@ class OpenCVThread(QThread):
         self.solHl = self.ui.findChild(QLabel, 'labelSH')
         self.solHl.setText(str(self.solH[1]))
         self.solH[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.solH, self.solHl))
-    
+
+        # Extent sliders
         self.extL = [self.ui.findChild(QSlider, 'sliderEL'), self.ui.findChild(QSlider, 'sliderEL').value()]
         self.extLl = self.ui.findChild(QLabel, 'labelEL')
         self.extLl.setText(str(self.extL[1]))
@@ -85,6 +88,7 @@ class OpenCVThread(QThread):
         self.extHl.setText(str(self.extH[1]))
         self.extH[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.extH, self.extHl))
 
+        # Orientation sliders TODO: remove
         self.oriL = [self.ui.findChild(QSlider, 'sliderOL'), self.ui.findChild(QSlider, 'sliderOL').value()]
         self.oriLl = self.ui.findChild(QLabel, 'labelOL')
         self.oriLl.setText(str(self.oriL[1]))
@@ -97,6 +101,20 @@ class OpenCVThread(QThread):
         
         self.comboAspect = self.ui.findChild(QComboBox, 'comboAspect')
         self.comboAspect.currentTextChanged.connect(self.aspectComboChanged)
+
+        # Orientation elements
+        self.checkAngle = self.ui.findChild(QCheckBox, 'checkAngle')
+        self.checkAngle.stateChanged.connect(self.checkboxChanged)
+
+        self.editAngle = self.ui.findChild(QLineEdit, 'editAngle')
+        self.listAngle = self.ui.findChild(QListWidget, 'listAngle')
+
+        self.editAddAngle = self.ui.findChild(QLineEdit, 'editAddAngle')
+        self.buttonAddAngle = self.ui.findChild(QPushButton, 'buttonAddAngle')
+        self.buttonAddAngle.clicked.connect(self.addAngleClicked)
+        self.buttonRemoveAngle = self.ui.findChild(QPushButton, 'buttonRemoveAngle')
+        self.buttonRemoveAngle.clicked.connect(self.removeAngleClicked)
+
 
     def selectFolder(self):
         self.directory = str(QFileDialog.getExistingDirectory(None, "Select Image Directory")) + "/"
@@ -123,6 +141,20 @@ class OpenCVThread(QThread):
     def aspectComboChanged(self):
         self.aspect = self.comboAspect.currentText()
         self.updated = False
+    
+    def checkboxChanged(self):
+        self.updated = False
+    
+    def addAngleClicked(self):
+        angleText = self.editAddAngle.text()
+        if len(angleText) > 0:
+            self.listAngle.addItems([angleText])
+    
+    def removeAngleClicked(self):
+        items = self.listAngle.selectedItems()
+
+        for i in items:
+            self.listAngle.takeItem(self.listAngle.row(i))
 
     def run(self):
         self.deleted = False
@@ -152,28 +184,31 @@ class OpenCVThread(QThread):
         mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
 
         _, contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-
         
-        # cv2.drawContours(img, contours, -1, (0, 0, 255), 2)  
-        print("-----------") 
         for cnt in contours:
             solidity = self.getSolidity(cnt)
             extent = self.getExtent(cnt)
             aspect = self.getAspectRatio(cnt)
             orientation = self.getOrientation(cnt)
-            # print("{} <= {} <= {}".format(self.solL[1], solidity, self.solH[1]))
+            validAngle = self.validAngle(orientation)
             if self.solL[1] <= solidity <= self.solH[1]:
                 if self.extL[1] <= extent <= self.extH[1]:
-                    if orientation is not None and (self.oriL[1] <= orientation <= self.oriH[1]): # option to ignore none
-                        if self.aspect == ">" and aspect > 1:
-                            cv2.drawContours(img, cnt, -1, (0, 0, 255), 2) 
-                            self.drawAngles(cnt, img, orientation)
-                        elif self.aspect == "<" and aspect < 1:
-                            cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
-                            self.drawAngles(cnt, img, orientation)
-                        elif self.aspect == "N/A":
-                            cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
-                            self.drawAngles(cnt, img, orientation)
+                    if validAngle:
+                        if orientation is not None and (self.oriL[1] <= orientation <= self.oriH[1]): # option to ignore none
+                            contourDrawn = False
+                            if self.aspect == ">" and aspect > 1:
+                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2) 
+                                contourDrawn = True
+                            elif self.aspect == "<" and aspect < 1:
+                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                                contourDrawn = True
+                            elif self.aspect == "N/A":
+                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                                contourDrawn = True
+                            
+                            if contourDrawn:
+                                if self.checkAngle.isChecked():
+                                    self.drawAngles(cnt, img, orientation)
 
         rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # res = cv2.bitwise_and(rgb_frame, rgb_frame, mask= mask)
@@ -186,11 +221,10 @@ class OpenCVThread(QThread):
         M = cv2.moments(cnt)
         x,y,w,h = cv2.boundingRect(cnt)
         if M['m00'] != 0:
-            print(orientation)
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
             orientationRad = (orientation+270) * (math.pi / 180)
-            length = 30
+            length = math.sqrt(w*w + h*h)/3
             cv2.line(img,(cx,cy),(int(cx+length*math.cos(orientationRad)),int(cy+length*math.sin(orientationRad))),(255,0,0),2)
             height, width = img.shape[:2]
             if cx > width/2:
@@ -225,6 +259,19 @@ class OpenCVThread(QThread):
             (x,y),(MA,ma),angle = cv2.fitEllipse(cnt)
             return angle
         return None
+    
+    def validAngle(self, orientation):
+        try:
+            angleList =  [int(self.listAngle.item(i).text()) for i in range(self.listAngle.count())]
+            angleTolerance = int(self.editAngle.text())
+            if len(angleList) >= 1:
+                for angle in angleList:
+                    if abs(angle - orientation) <= angleTolerance:
+                        return True
+                return False
+            return True
+        except ValueError:
+            return True
 
     def delete(self):
         self.deleted = True
