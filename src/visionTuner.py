@@ -15,7 +15,9 @@ class OpenCVThread(QThread):
         QThread.__init__(self)
         self.ui = parent
         self.mode = mode
+        # Used to stop the main loop
         self.deleted = False
+        # Used when in Folder mode to signal that a change was made to the image
         self.updated = False
         self.imgIndx = 0
         self.directory = "img/"
@@ -126,6 +128,7 @@ class OpenCVThread(QThread):
         self.buttonRemoveAngle = self.ui.findChild(QPushButton, 'buttonRemoveAngle')
         self.buttonRemoveAngle.clicked.connect(self.removeAngleClicked)
 
+    # Used to signal an update from a connecter
     def signalUpdate(self):
         self.updated = False
 
@@ -214,7 +217,6 @@ class OpenCVThread(QThread):
 
         _, contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         
-        print("--------------")
         for cnt in contours:
             solidity = self.getSolidity(cnt)
             extent = self.getExtent(cnt)
@@ -237,7 +239,7 @@ class OpenCVThread(QThread):
                                     cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
                                     contourDrawn = True
                                 
-                                if contourDrawn:
+                                if contourDrawn and orientation is not None:
                                     if self.checkAngle.isChecked():
                                         self.drawAngles(cnt, img, orientation)
 
@@ -291,10 +293,11 @@ class OpenCVThread(QThread):
     
     def getOrientation(self, cnt):
         if (len(cnt) >= 5):
-            (x,y),(MA,ma),angle = cv2.fitEllipse(cnt)
+            (x, y),(MA, ma),angle = cv2.fitEllipse(cnt)
             return angle
         return None
     
+    # Returns an estimate of the number of sides a shape has
     def getSides(self, cnt):
         epsilon = self.sideApprox[1]*cv2.arcLength(cnt,True)
         approx = cv2.approxPolyDP(cnt,epsilon,True)
@@ -316,13 +319,18 @@ class OpenCVThread(QThread):
         except TypeError:
             return True
 
+    # Call this when you want to change the mode
     def pauseThread(self):
         self.deleted = True
     
+    # Call this after calling pauseThread and setMode to restart the tread
     def continueThread(self):
         t = threading.Timer(.5,self.enableThread,args=[])
         t.start()
     
+    # Called from continueThread after a .5 second delay. This is a band-aid fix to an underlying problem
+    # in the QThreading structure. (The .5 second delay makes sure at least one iteration of the main loop has
+    # run in order to properly reset some flags. The delay might need to be changed to support lower end hardware)
     def enableThread(self):
         self.deleted = False
         self.updated = False

@@ -2,7 +2,6 @@
 
 The intent of this project is to aid in fine tuning values used for FRC Team 4500's vision pipeline.
 
-
 ## Installing
 
 1) Navigate to this repo's [releases](https://github.com/NicolasNewman/FRC-Vision-Tuner/releases) and download the version for your system.
