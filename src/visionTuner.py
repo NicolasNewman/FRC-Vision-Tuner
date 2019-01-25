@@ -346,7 +346,6 @@ class VisionTuner(QMainWindow):
         self.ui = None
         self.load_ui()
         self.load_cv()
-        # self.load_signals()
 
         self.videoSource = self.ui.findChild(QLabel, 'videoSource')
         
@@ -373,25 +372,19 @@ class VisionTuner(QMainWindow):
         pass
 
     def signal_comboSourceChanged(self, value):
-        # if hasattr(self, 'cvThread'):
-        #     self.cvThread.pauseThread()
         self.cvThread.pauseThread()
         if value == "Video":
             self.layout_toggle(self.layoutVideo, True)
             self.layout_toggle(self.layoutFolder, False)
 
-            # self.cvThread.imageSignal.connect(self.setImage)
             self.cvThread.setMode("Video")
             self.cvThread.continueThread()
-            # self.cvThread.start()
         elif value == "Folder":
             self.layout_toggle(self.layoutVideo, False)
             self.layout_toggle(self.layoutFolder, True)
 
-            # self.cvThread.imageSignal.connect(self.setImage)
             self.cvThread.setMode("Folder")
             self.cvThread.continueThread()
-            # self.cvThread.start()
         elif value == "None":
             self.layout_toggle(self.layoutVideo, False)
             self.layout_toggle(self.layoutFolder, False)
