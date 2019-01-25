@@ -89,17 +89,25 @@ class OpenCVThread(QThread):
         self.extHl.setText(str(self.extH[1]))
         self.extH[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.extH, self.extHl))
 
-        # Orientation sliders TODO: remove
-        self.oriL = [self.ui.findChild(QSlider, 'sliderOL'), self.ui.findChild(QSlider, 'sliderOL').value()]
-        self.oriLl = self.ui.findChild(QLabel, 'labelOL')
-        self.oriLl.setText(str(self.oriL[1]))
-        self.oriL[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.oriL, self.oriLl))
+        # Side sliders
+        self.sideMin = [self.ui.findChild(QSlider, 'sliderSideMin'), self.ui.findChild(QSlider, 'sliderSideMin').value()]
+        self.sideMinl = self.ui.findChild(QLabel, 'labelSideMin')
+        self.sideMinl.setText(str(self.sideMin[1]))
+        self.sideMin[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sideMin, self.sideMinl))
         
-        self.oriH = [self.ui.findChild(QSlider, 'sliderOH'), self.ui.findChild(QSlider, 'sliderOH').value()]
-        self.oriHl = self.ui.findChild(QLabel, 'labelOH')
-        self.oriHl.setText(str(self.oriH[1]))
-        self.oriH[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.oriH, self.oriHl))
+        self.sideMax = [self.ui.findChild(QSlider, 'sliderSideMax'), self.ui.findChild(QSlider, 'sliderSideMax').value()]
+        self.sideMaxl = self.ui.findChild(QLabel, 'labelSideMax')
+        self.sideMaxl.setText(str(self.sideMax[1]))
+        self.sideMax[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sideMax, self.sideMaxl))
+
+        self.sideApprox = [self.ui.findChild(QSlider, 'sliderSideApprox'), self.ui.findChild(QSlider, 'sliderSideApprox').value() / 100.0]
+        self.sideApproxl = self.ui.findChild(QLabel, 'labelSideApprox')
+        self.sideApproxl.setText(str(self.sideApprox[1]))
+        self.sideApprox[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.sideApprox, self.sideApproxl))
         
+
+
+        # Aspect ratio
         self.comboAspect = self.ui.findChild(QComboBox, 'comboAspect')
         self.comboAspect.currentTextChanged.connect(self.aspectComboChanged)
 
@@ -143,6 +151,12 @@ class OpenCVThread(QThread):
     # Called when a slider that is continuous is changed
     def ratioSliderChanged(self, slider, label):
         sliderVal = slider[0].value() / 100.0
+        slider[1] = sliderVal
+        label.setText(str(sliderVal))
+        self.updated = False
+    
+    def approxSliderChanged(self, slider, label):
+        sliderVal = slider[0].value() / 10.0
         slider[1] = sliderVal
         label.setText(str(sliderVal))
         self.updated = False
@@ -200,30 +214,32 @@ class OpenCVThread(QThread):
 
         _, contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         
+        print("--------------")
         for cnt in contours:
             solidity = self.getSolidity(cnt)
             extent = self.getExtent(cnt)
             aspect = self.getAspectRatio(cnt)
             orientation = self.getOrientation(cnt)
+            sides = self.getSides(cnt)
             validAngle = self.validAngle(orientation)
             if self.solL[1] <= solidity <= self.solH[1]:
                 if self.extL[1] <= extent <= self.extH[1]:
-                    if validAngle:
-                        if orientation is not None and (self.oriL[1] <= orientation <= self.oriH[1]): # option to ignore none
-                            contourDrawn = False
-                            if self.aspect == ">" and aspect > 1:
-                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2) 
-                                contourDrawn = True
-                            elif self.aspect == "<" and aspect < 1:
-                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
-                                contourDrawn = True
-                            elif self.aspect == "N/A":
-                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
-                                contourDrawn = True
-                            
-                            if contourDrawn:
-                                if self.checkAngle.isChecked():
-                                    self.drawAngles(cnt, img, orientation)
+                    if self.sideMin[1] <= sides <= self.sideMax[1]:
+                        if validAngle:
+                                contourDrawn = False
+                                if self.aspect == ">" and aspect > 1:
+                                    cv2.drawContours(img, cnt, -1, (0, 0, 255), 2) 
+                                    contourDrawn = True
+                                elif self.aspect == "<" and aspect < 1:
+                                    cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                                    contourDrawn = True
+                                elif self.aspect == "N/A":
+                                    cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                                    contourDrawn = True
+                                
+                                if contourDrawn:
+                                    if self.checkAngle.isChecked():
+                                        self.drawAngles(cnt, img, orientation)
 
         rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # res = cv2.bitwise_and(rgb_frame, rgb_frame, mask= mask)
@@ -278,6 +294,11 @@ class OpenCVThread(QThread):
             (x,y),(MA,ma),angle = cv2.fitEllipse(cnt)
             return angle
         return None
+    
+    def getSides(self, cnt):
+        epsilon = self.sideApprox[1]*cv2.arcLength(cnt,True)
+        approx = cv2.approxPolyDP(cnt,epsilon,True)
+        return len(approx)
     
     # Determines if an angle is valid based on the list and tolerance value
     def validAngle(self, orientation):
