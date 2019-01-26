@@ -1,3 +1,4 @@
+import numpy as np
 from PyQt5.uic import loadUi
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QVBoxLayout, QHBoxLayout, QSlider, QPushButton, QFileDialog, QCheckBox, QLineEdit, QListWidget
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent
@@ -7,7 +8,6 @@ import glob
 import math
 import threading
 import cv2
-import numpy as np
 
 class OpenCVThread(QThread):
     imageSignal = pyqtSignal(QImage)
