@@ -11,10 +11,11 @@ import cv2
 
 class OpenCVThread(QThread):
     imageSignal = pyqtSignal(QImage)
-    def __init__(self, parent=None, mode="None"):
+    def __init__(self, parent=None, mode="None", filterMode="BGR Treshold"):
         QThread.__init__(self)
         self.ui = parent
         self.mode = mode
+        self.filterMode = filterMode
         # Used to stop the main loop
         self.deleted = False
         # Used when in Folder mode to signal that a change was made to the image
@@ -34,6 +35,9 @@ class OpenCVThread(QThread):
         self.folderButton.clicked.connect(self.selectFolder)
 
         self.folderLabel = self.ui.findChild(QLabel, 'labelFolderDir')
+
+        # Filtering Mode
+        self.comboFilterMode = self.ui.findChild(QComboBox, 'comboFilterMode')
 
         # HSV Sliders
         self.hh = [self.ui.findChild(QSlider, 'sliderHSV_HH'), self.ui.findChild(QSlider, 'sliderHSV_HH').value()]
@@ -68,6 +72,18 @@ class OpenCVThread(QThread):
         self.vll.setText(str(self.vl[1]))
         self.vl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vl, self.vll))
 
+        # Channel Sliders
+        self.channelB = [self.ui.findChild(QSlider, 'sliderChannelB'), self.ui.findChild(QSlider, 'sliderChannelB').value()]
+        self.channelBL = self.ui.findChild(QLabel, 'labelChannelB')
+        self.channelB[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.channelB, self.channelBL))
+        
+        self.channelR = [self.ui.findChild(QSlider, 'sliderChannelR'), self.ui.findChild(QSlider, 'sliderChannelR').value()]
+        self.channelRL = self.ui.findChild(QLabel, 'labelChannelR')
+        self.channelR[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.channelR, self.channelRL))
+
+        self.channelOtsu = [self.ui.findChild(QSlider, 'sliderChannelOtsu'), self.ui.findChild(QSlider, 'sliderChannelOtsu').value()]
+        self.channelOtsuL = self.ui.findChild(QLabel, 'labelChannelOtsu')
+        self.channelOtsu[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.channelOtsu, self.channelOtsuL))
         
         # Solidity sliders
         self.solL = [self.ui.findChild(QSlider, 'sliderSL'), self.ui.findChild(QSlider, 'sliderSL').value()]
@@ -209,13 +225,35 @@ class OpenCVThread(QThread):
     
     # Processes the given image and signals the main thread of the change
     def processImage(self, img):
-        hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        b_scale = 87
+        r_scale = 60
+        otsu_threshold = 5
 
-        highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
-        lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
-        mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
+        kernel = np.ones((3,3),np.uint8)
+        contours = None
+        if self.filterMode == "BGR Treshold":
+            hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        _, contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
+            lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
+            mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
+
+            _, contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        elif self.filterMode == "Channel Subtraction":
+            (cb, cg, cr) = cv2.split(img)
+            bluePlusRed = cv2.addWeighted(cb, self.channelB[1] / 100.0, cr, self.channelR[1] / 100.0, 0.0)
+            imageOut = cv2.subtract(cg, bluePlusRed)
+
+            erosion = cv2.erode(imageOut,kernel,iterations = 2)
+            dialate = cv2.erode(erosion,kernel,iterations = 2)
+
+            thresholdVal,th2 = cv2.threshold(dialate,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            
+            if thresholdVal < self.channelOtsu[1]:
+                print("false")
+            
+            _, contours, _ = cv2.findContours(th2, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
         
         for cnt in contours:
             solidity = self.getSolidity(cnt)
@@ -338,6 +376,9 @@ class OpenCVThread(QThread):
     
     def setMode(self, mode):
         self.mode = mode
+    
+    def setFilterMode(self, mode):
+        self.filterMode = mode
 
 class VisionTuner(QMainWindow):
 
@@ -350,7 +391,10 @@ class VisionTuner(QMainWindow):
         self.videoSource = self.ui.findChild(QLabel, 'videoSource')
         
         self.comboSource = self.ui.findChild(QComboBox, 'comboSource')
-        self.comboSource.currentTextChanged.connect(self.signal_comboSourceChanged)
+        self.comboSource.currentTextChanged.connect(self.signal_comboChanged)
+
+        self.comboFilterMode = self.ui.findChild(QComboBox, 'comboFilterMode')
+        self.comboFilterMode.currentTextChanged.connect(self.signal_comboChanged)
 
         self.layoutVideo = self.ui.findChild(QVBoxLayout, 'layoutVideo')
         self.layout_toggle(self.layoutVideo, False)
@@ -371,26 +415,29 @@ class VisionTuner(QMainWindow):
         self.cvThread.imageSignal.connect(self.setImage)
         pass
 
-    def signal_comboSourceChanged(self, value):
+    def signal_comboChanged(self, value):
+        filterMode = self.comboFilterMode.currentText()
+        sourceMode = self.comboSource.currentText()
         self.cvThread.pauseThread()
-        if value == "Video":
+        if sourceMode == "Video":
             self.layout_toggle(self.layoutVideo, True)
             self.layout_toggle(self.layoutFolder, False)
 
-            self.cvThread.setMode("Video")
+            self.cvThread.setMode(sourceMode)
+            self.cvThread.setFilterMode(filterMode)
             self.cvThread.continueThread()
-        elif value == "Folder":
+        elif sourceMode == "Folder":
             self.layout_toggle(self.layoutVideo, False)
             self.layout_toggle(self.layoutFolder, True)
 
-            self.cvThread.setMode("Folder")
+            self.cvThread.setMode(sourceMode)
+            self.cvThread.setFilterMode(filterMode)
             self.cvThread.continueThread()
-        elif value == "None":
+        elif sourceMode == "None":
             self.layout_toggle(self.layoutVideo, False)
             self.layout_toggle(self.layoutFolder, False)
             
             self.cvThread = OpenCVThread(self.ui, "None")
-            
     
     def layout_toggle(self, layout, visible):
         items = (layout.itemAt(i) for i in range(layout.count()))

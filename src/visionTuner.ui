@@ -13,6 +13,9 @@
   <property name="windowTitle">
    <string>Vision Tuner</string>
   </property>
+  <property name="styleSheet">
+   <string notr="true"/>
+  </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
@@ -37,7 +40,13 @@
        </widget>
       </item>
       <item>
-       <widget class="QTabWidget" name="tabOrientation">
+       <widget class="QTabWidget" name="tabWidget">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="styleSheet">
+         <string notr="true"/>
+        </property>
         <property name="currentIndex">
          <number>0</number>
         </property>
@@ -46,7 +55,7 @@
           <string>Source</string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_2">
-          <item row="2" column="0">
+          <item row="3" column="0">
            <layout class="QVBoxLayout" name="layoutFolder">
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_3">
@@ -120,7 +129,7 @@
             </item>
            </layout>
           </item>
-          <item row="0" column="0">
+          <item row="1" column="0">
            <layout class="QVBoxLayout" name="verticalLayout">
             <item>
              <layout class="QHBoxLayout" name="horizontalLayout_2">
@@ -160,7 +169,7 @@
             </item>
            </layout>
           </item>
-          <item row="1" column="0">
+          <item row="2" column="0">
            <layout class="QVBoxLayout" name="layoutVideo">
             <item>
              <widget class="QPushButton" name="pushButton">
@@ -171,7 +180,7 @@
             </item>
            </layout>
           </item>
-          <item row="3" column="0">
+          <item row="4" column="0">
            <spacer name="verticalSpacer">
             <property name="orientation">
              <enum>Qt::Vertical</enum>
@@ -184,11 +193,63 @@
             </property>
            </spacer>
           </item>
+          <item row="0" column="0">
+           <layout class="QHBoxLayout" name="horizontalLayout_8">
+            <item>
+             <widget class="QComboBox" name="comboFilterMode">
+              <property name="minimumSize">
+               <size>
+                <width>210</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>210</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <item>
+               <property name="text">
+                <string>Channel Subtraction</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>BGR Treshold</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Expanding</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
          </layout>
         </widget>
         <widget class="QWidget" name="tabHSV">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
          <attribute name="title">
-          <string>HSV</string>
+          <string>BGR</string>
          </attribute>
          <layout class="QGridLayout" name="gridLayout_3">
           <item row="0" column="0">
@@ -553,6 +614,198 @@
           </item>
           <item row="7" column="0">
            <spacer name="verticalSpacer_2">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="tabChannel">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <attribute name="title">
+          <string>Channel</string>
+         </attribute>
+         <layout class="QGridLayout" name="gridLayout_6">
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="verticalLayout_5">
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_10">
+              <item>
+               <widget class="QLabel" name="label_18">
+                <property name="minimumSize">
+                 <size>
+                  <width>66</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>66</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>B Scale:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSlider" name="sliderChannelB">
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="labelChannelB">
+                <property name="minimumSize">
+                 <size>
+                  <width>35</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>35</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>1</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_11">
+              <item>
+               <widget class="QLabel" name="label_23">
+                <property name="minimumSize">
+                 <size>
+                  <width>66</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>66</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>R Scale:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSlider" name="sliderChannelR">
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>100</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="labelChannelR">
+                <property name="minimumSize">
+                 <size>
+                  <width>35</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>35</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>1</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_9">
+              <item>
+               <widget class="QLabel" name="label_20">
+                <property name="minimumSize">
+                 <size>
+                  <width>66</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>66</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>Otsu:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QSlider" name="sliderChannelOtsu">
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="maximum">
+                 <number>10</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="labelChannelOtsu">
+                <property name="minimumSize">
+                 <size>
+                  <width>35</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>35</width>
+                  <height>16777215</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>1</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <spacer name="verticalSpacer_11">
             <property name="orientation">
              <enum>Qt::Vertical</enum>
             </property>
@@ -1080,7 +1333,7 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="tab">
+        <widget class="QWidget" name="tabOrientation">
          <attribute name="title">
           <string>Orientation</string>
          </attribute>
