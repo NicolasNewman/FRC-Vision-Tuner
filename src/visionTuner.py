@@ -1,21 +1,21 @@
 import numpy as np
 from PyQt5.uic import loadUi
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QVBoxLayout, QHBoxLayout, QSlider, QPushButton, QFileDialog, QCheckBox, QLineEdit, QListWidget
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QComboBox, QVBoxLayout, QHBoxLayout, QSlider, QPushButton, QFileDialog, QCheckBox, QLineEdit, QListWidget, QTabWidget, QWidget
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, QThread, QEvent
 from PyQt5.QtGui import QImage, QPixmap
 import sys
 import glob
+import urllib
 import math
 import threading
 import cv2
 
 class OpenCVThread(QThread):
     imageSignal = pyqtSignal(QImage)
-    def __init__(self, parent=None, mode="None", filterMode="BGR Treshold"):
+    def __init__(self, parent=None, mode="None"):
         QThread.__init__(self)
         self.ui = parent
         self.mode = mode
-        self.filterMode = filterMode
         # Used to stop the main loop
         self.deleted = False
         # Used when in Folder mode to signal that a change was made to the image
@@ -39,39 +39,6 @@ class OpenCVThread(QThread):
         # Filtering Mode
         self.comboFilterMode = self.ui.findChild(QComboBox, 'comboFilterMode')
 
-        # HSV Sliders
-        self.hh = [self.ui.findChild(QSlider, 'sliderHSV_HH'), self.ui.findChild(QSlider, 'sliderHSV_HH').value()]
-        self.hhl = self.ui.findChild(QLabel, 'labelHSV_HH')
-        self.hhl.setText(str(self.hh[1]))
-        self.hh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.hh, self.hhl))
-        
-        self.hl = [self.ui.findChild(QSlider, 'sliderHSV_HL'), self.ui.findChild(QSlider, 'sliderHSV_HL').value()]
-        self.hll = self.ui.findChild(QLabel, 'labelHSV_HL')
-        self.hll.setText(str(self.hl[1]))
-        self.hl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.hl, self.hll))
-
-
-        self.sh = [self.ui.findChild(QSlider, 'sliderHSV_SH'), self.ui.findChild(QSlider, 'sliderHSV_SH').value()]
-        self.shl = self.ui.findChild(QLabel, 'labelHSV_SH')
-        self.shl.setText(str(self.sh[1]))
-        self.sh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sh, self.shl))
-
-        self.sl = [self.ui.findChild(QSlider, 'sliderHSV_SL'), self.ui.findChild(QSlider, 'sliderHSV_SL').value()]
-        self.sll = self.ui.findChild(QLabel, 'labelHSV_SL')
-        self.sll.setText(str(self.sl[1]))
-        self.sl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.sl, self.sll))
-
-
-        self.vh = [self.ui.findChild(QSlider, 'sliderHSV_VH'), self.ui.findChild(QSlider, 'sliderHSV_VH').value()]
-        self.vhl = self.ui.findChild(QLabel, 'labelHSV_VH')
-        self.vhl.setText(str(self.vh[1]))
-        self.vh[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vh, self.vhl))
-
-        self.vl = [self.ui.findChild(QSlider, 'sliderHSV_VL'), self.ui.findChild(QSlider, 'sliderHSV_VL').value()]
-        self.vll = self.ui.findChild(QLabel, 'labelHSV_VL')
-        self.vll.setText(str(self.vl[1]))
-        self.vl[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.vl, self.vll))
-
         # Channel Sliders
         self.channelB = [self.ui.findChild(QSlider, 'sliderChannelB'), self.ui.findChild(QSlider, 'sliderChannelB').value()]
         self.channelBL = self.ui.findChild(QLabel, 'labelChannelB')
@@ -85,6 +52,11 @@ class OpenCVThread(QThread):
         self.channelOtsuL = self.ui.findChild(QLabel, 'labelChannelOtsu')
         self.channelOtsu[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.channelOtsu, self.channelOtsuL))
         
+        # Contour Info
+        self.contourInfoCheck = self.ui.findChild(QCheckBox, 'checkContourInfo')
+        self.contourInfoCheck.stateChanged.connect(self.checkboxChanged)
+        self.contourInfoTab = self.ui.findChild(QTabWidget, 'tabWidgetContourInfo')
+
         # Solidity sliders
         self.solL = [self.ui.findChild(QSlider, 'sliderSL'), self.ui.findChild(QSlider, 'sliderSL').value()]
         self.solLl = self.ui.findChild(QLabel, 'labelSL')
@@ -123,11 +95,19 @@ class OpenCVThread(QThread):
         self.sideApproxl.setText(str(self.sideApprox[1]))
         self.sideApprox[0].valueChanged.connect(lambda: self.ratioSliderChanged(self.sideApprox, self.sideApproxl))
         
-
-
         # Aspect ratio
         self.comboAspect = self.ui.findChild(QComboBox, 'comboAspect')
         self.comboAspect.currentTextChanged.connect(self.aspectComboChanged)
+
+        # Morphological elements
+
+        self.morphKernel = [self.ui.findChild(QSlider, 'sliderMorphKernel'), self.ui.findChild(QSlider, 'sliderMorphKernel').value()]
+        self.morphKernell = self.ui.findChild(QLabel, 'labelMorphKernel')
+        self.morphKernel[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.morphKernel, self.morphKernell))
+        
+        self.morphIteration = [self.ui.findChild(QSlider, 'sliderMorphIteration'), self.ui.findChild(QSlider, 'sliderMorphIteration').value()]
+        self.morphIterationl = self.ui.findChild(QLabel, 'labelMorphIteration')
+        self.morphIteration[0].valueChanged.connect(lambda: self.hsvSliderChanged(self.morphIteration, self.morphIterationl))
 
         # Orientation elements
         self.checkAngle = self.ui.findChild(QCheckBox, 'checkAngle')
@@ -219,42 +199,53 @@ class OpenCVThread(QThread):
             self.folderSelect.setMaximum(folderSize-1)
             while self.deleted is False:
                 if self.updated is False:
+                    print("---------- Updating ----------")
                     bgr_frame = cv2.imread(imgPaths[self.imgIndx])
                     self.processImage(bgr_frame)
                     self.updated = True
-    
+        elif self.mode == "Stream":
+            cap = cv2.VideoCapture("http://frcvision.local:1181/stream.mjpg")
+            while self.deleted is False:
+                ret, bgr_frame = cap.read()
+
+                self.processImage(bgr_frame)
+                # convertToQtFormat = QImage(bgr_frame, bgr_frame.shape[1], bgr_frame.shape[0], bgr_frame.shape[1] * 3, QImage.Format_RGB888)
+                # p = convertToQtFormat.scaled(480, 360)  
+                # self.imageSignal.emit(p) 
+            # stream = urllib.urlopen('http://frcvision.local:1181/stream.mjpg')
+            # bytes = ''
+            # while True:
+            #     bytes += stream.read(1024)
+            #     a = bytes.find('\xff\xd8')
+            #     b = bytes.find('\xff\xd9')
+            #     if a != -1 and b != -1:
+            #         jpg = bytes[a:b+2]
+            #         bytes = bytes[b+2:]
+            #         img = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.CV_LOAD_IMAGE_COLOR)
+            #         convertToQtFormat = QImage(img, img.shape[1], img.shape[0], img.shape[1] * 3, QImage.Format_RGB888)
+            #         p = convertToQtFormat.scaled(480, 360)  
+            #         self.imageSignal.emit(p)    
+
     # Processes the given image and signals the main thread of the change
     def processImage(self, img):
-        b_scale = 87
-        r_scale = 60
-        otsu_threshold = 5
 
-        kernel = np.ones((3,3),np.uint8)
-        contours = None
-        if self.filterMode == "BGR Treshold":
-            hsv_frame = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        kernel = np.ones((self.morphKernel[1],self.morphKernel[1]),np.uint8)
 
-            highLimitHSV = np.array([self.hh[1], self.sh[1], self.vh[1]])
-            lowLimitHSV = np.array([self.hl[1], self.sl[1], self.vl[1]])
-            mask = cv2.inRange(hsv_frame, lowLimitHSV, highLimitHSV)
+        (cb, cg, cr) = cv2.split(img)
+        bluePlusRed = cv2.addWeighted(cb, self.channelB[1] / 100.0, cr, self.channelR[1] / 100.0, 0.0)
+        imageOut = cv2.subtract(cg, bluePlusRed)
 
-            _, contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-        elif self.filterMode == "Channel Subtraction":
-            (cb, cg, cr) = cv2.split(img)
-            bluePlusRed = cv2.addWeighted(cb, self.channelB[1] / 100.0, cr, self.channelR[1] / 100.0, 0.0)
-            imageOut = cv2.subtract(cg, bluePlusRed)
+        erosion = cv2.erode(imageOut,kernel,iterations = self.morphIteration[1])
+        dialate = cv2.erode(erosion,kernel,iterations = self.morphIteration[1])
 
-            erosion = cv2.erode(imageOut,kernel,iterations = 2)
-            dialate = cv2.erode(erosion,kernel,iterations = 2)
-
-            thresholdVal,th2 = cv2.threshold(dialate,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-            
-            if thresholdVal < self.channelOtsu[1]:
-                print("false")
-            
-            _, contours, _ = cv2.findContours(th2, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-
+        thresholdVal,th2 = cv2.threshold(dialate,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
         
+        if thresholdVal < self.channelOtsu[1]:
+            print("false")
+        
+        _, contours, _ = cv2.findContours(th2, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        
+        i = 0
         for cnt in contours:
             solidity = self.getSolidity(cnt)
             extent = self.getExtent(cnt)
@@ -262,6 +253,8 @@ class OpenCVThread(QThread):
             orientation = self.getOrientation(cnt)
             sides = self.getSides(cnt)
             validAngle = self.validAngle(orientation)
+
+            area = cv2.contourArea(cnt)
             if self.solL[1] <= solidity <= self.solH[1]:
                 if self.extL[1] <= extent <= self.extH[1]:
                     if self.sideMin[1] <= sides <= self.sideMax[1]:
@@ -276,7 +269,8 @@ class OpenCVThread(QThread):
                                 elif self.aspect == "N/A":
                                     cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
                                     contourDrawn = True
-                                
+                                self.drawID(cnt, img, i, aspect)
+                                i += 1
                                 if contourDrawn and orientation is not None:
                                     if self.checkAngle.isChecked():
                                         self.drawAngles(cnt, img, orientation)
@@ -288,6 +282,18 @@ class OpenCVThread(QThread):
         
         self.imageSignal.emit(p)  
 
+    def drawID(self, cnt, img, i, aspect):
+        if self.contourInfoCheck.isChecked():
+            print("----- Contour {} -----".format(i))
+            print("Area: {}".format(cv2.contourArea(cnt)))
+            print("Aspect Ratio: {}".format(aspect))
+            x,y,w,h = cv2.boundingRect(cnt)
+            M = cv2.moments(cnt)
+            if M['m00'] != 0:
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+                cv2.putText(img, str(i), (cx, int(cy-h/2)), cv2.FONT_HERSHEY_SIMPLEX, .4, (255, 255, 255), 1, cv2.LINE_AA)
+    
     # Draws the angle of the orientation for each contour
     def drawAngles(self, cnt, img, orientation):
         M = cv2.moments(cnt)
@@ -376,9 +382,6 @@ class OpenCVThread(QThread):
     
     def setMode(self, mode):
         self.mode = mode
-    
-    def setFilterMode(self, mode):
-        self.filterMode = mode
 
 class VisionTuner(QMainWindow):
 
@@ -392,9 +395,6 @@ class VisionTuner(QMainWindow):
         
         self.comboSource = self.ui.findChild(QComboBox, 'comboSource')
         self.comboSource.currentTextChanged.connect(self.signal_comboChanged)
-
-        self.comboFilterMode = self.ui.findChild(QComboBox, 'comboFilterMode')
-        self.comboFilterMode.currentTextChanged.connect(self.signal_comboChanged)
 
         self.layoutVideo = self.ui.findChild(QVBoxLayout, 'layoutVideo')
         self.layout_toggle(self.layoutVideo, False)
@@ -416,7 +416,6 @@ class VisionTuner(QMainWindow):
         pass
 
     def signal_comboChanged(self, value):
-        filterMode = self.comboFilterMode.currentText()
         sourceMode = self.comboSource.currentText()
         self.cvThread.pauseThread()
         if sourceMode == "Video":
@@ -424,14 +423,18 @@ class VisionTuner(QMainWindow):
             self.layout_toggle(self.layoutFolder, False)
 
             self.cvThread.setMode(sourceMode)
-            self.cvThread.setFilterMode(filterMode)
             self.cvThread.continueThread()
         elif sourceMode == "Folder":
             self.layout_toggle(self.layoutVideo, False)
             self.layout_toggle(self.layoutFolder, True)
 
             self.cvThread.setMode(sourceMode)
-            self.cvThread.setFilterMode(filterMode)
+            self.cvThread.continueThread()
+        elif sourceMode == "Stream":
+            self.layout_toggle(self.layoutVideo, False)
+            self.layout_toggle(self.layoutFolder, False)
+
+            self.cvThread.setMode(sourceMode)
             self.cvThread.continueThread()
         elif sourceMode == "None":
             self.layout_toggle(self.layoutVideo, False)
