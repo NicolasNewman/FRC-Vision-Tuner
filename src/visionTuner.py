@@ -232,8 +232,10 @@ class OpenCVThread(QThread):
         kernel = np.ones((self.morphKernel[1],self.morphKernel[1]),np.uint8)
 
         (cb, cg, cr) = cv2.split(img)
-        bluePlusRed = cv2.addWeighted(cb, self.channelB[1] / 100.0, cr, self.channelR[1] / 100.0, 0.0)
-        imageOut = cv2.subtract(cg, bluePlusRed)
+        # bluePlusRed = cv2.addWeighted(cb, self.channelB[1] / 100.0, cr, self.channelR[1] / 100.0, 0.0)
+        # imageOut = cv2.subtract(cg, bluePlusRed)
+        bluePlusRed = cv2.addWeighted(cg, self.channelB[1] / 100.0, cr, self.channelR[1] / 100.0, 0.0)
+        imageOut = cv2.subtract(cb, bluePlusRed)
 
         erosion = cv2.erode(imageOut,kernel,iterations = self.morphIteration[1])
         dialate = cv2.erode(erosion,kernel,iterations = self.morphIteration[1])
@@ -246,6 +248,7 @@ class OpenCVThread(QThread):
         _, contours, _ = cv2.findContours(th2, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         
         i = 0
+        passedCnt = []
         for cnt in contours:
             solidity = self.getSolidity(cnt)
             extent = self.getExtent(cnt)
@@ -253,8 +256,8 @@ class OpenCVThread(QThread):
             orientation = self.getOrientation(cnt)
             sides = self.getSides(cnt)
             validAngle = self.validAngle(orientation)
-
             area = cv2.contourArea(cnt)
+
             if self.solL[1] <= solidity <= self.solH[1]:
                 if self.extL[1] <= extent <= self.extH[1]:
                     if self.sideMin[1] <= sides <= self.sideMax[1]:
@@ -271,17 +274,40 @@ class OpenCVThread(QThread):
                                     contourDrawn = True
                                 self.drawID(cnt, img, i, aspect)
                                 i += 1
+                                if contourDrawn:
+                                    passedCnt.append(cnt)
                                 if contourDrawn and orientation is not None:
                                     if self.checkAngle.isChecked():
                                         self.drawAngles(cnt, img, orientation)
+            
+        self.yearlyCode(img, passedCnt)
 
         rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # res = cv2.bitwise_and(rgb_frame, rgb_frame, mask= mask)
         convertToQtFormat = QImage(rgb_frame, rgb_frame.shape[1], rgb_frame.shape[0], rgb_frame.shape[1] * 3, QImage.Format_RGB888)
         p = convertToQtFormat.scaled(480, 360)
         
-        self.imageSignal.emit(p)  
-
+        self.imageSignal.emit(p)
+    
+    def yearlyCode(self, img, cnt):
+        sortedCnt = sorted(cnt, key=cv2.contourArea, reverse=True)
+        for i in range(0, math.floor(len(sortedCnt) / 2), 2):
+            x1,y1,w1,h1 = cv2.boundingRect(sortedCnt[i])
+            x2,y2,w2,h2 = cv2.boundingRect(sortedCnt[i+1])
+            cv2.rectangle(img,(x1,y1),(x2+w2,y1+h1),(0,255,0),2)
+            cX = int(round((x1+x2+w2)/ 2))
+            cY = int(round((y1+y1+h1) / 2))
+            cv2.circle(img, (round((x1+x2+w2)/ 2), round((y1+y1+h1)/2)), 1, (0, 255, 0), 5)
+            # cv2.putText(img, str(int(orientation)), (cx-int(w/2), cy-int(h/2)), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1, cv2.LINE_AA)
+            cv2.putText(img, ('({},{})'.format(cX, cY)), (cX, cY), cv2.FONT_HERSHEY_SIMPLEX, .35, (255, 255, 255), 1, cv2.LINE_AA)
+            
+            # try:
+            #     fl = 117.496
+            #     h = 120
+            #     z = round(((28.5*fl) / (h-cY)))
+            #     cv2.putText(img, str(z), (0, 20), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1, cv2.LINE_AA)
+            # except ZeroDivisionError:
+            #     pass
     def drawID(self, cnt, img, i, aspect):
         if self.contourInfoCheck.isChecked():
             print("----- Contour {} -----".format(i))
