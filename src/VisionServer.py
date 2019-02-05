@@ -140,7 +140,6 @@ class USBCamera:
         self.port = port
         self.instance = instance
         self.usb = self.instance.startAutomaticCapture(dev=port)
-        # self.info = self.usb.getInfo()
         self.cvSink = self.instance.getVideo(camera=self.usb)
         self.usb.setResolution(resolution[0], resolution[1])
         self.outputStream = self.instance.putVideo(streamName, resolution[0], resolution[1])
@@ -160,25 +159,19 @@ class USBCamera:
 
 def main():
     logging.basicConfig(level=logging.DEBUG)
+    
     NetworkTables.initialize(server='roborio-{}-frc.local'.format(teamNumber))
     sd = NetworkTables.getTable('SmartDashboard')
+    sd.putNumber("imgW", resolution[0])
+    sd.putNumber("imgH", resolution[1])
+    
     cs = CameraServer.getInstance()
     cs.enableLogging()
 
     camOne = USBCamera(0, cs, "OpenCV_One")
 
-    # imgBase = np.zeros(shape=(resolution[1], resolution[0], 3), dtype=np.uint8)
-
     camOneThread = CVThread("OpenCV_One", camOne, sd)
     camOneThread.start()
-    # while True:
-    #     time, imgOne = camOne.getFrame(imgBase)
-    #     if time == 0:
-    #         camOne.getOutputStream().notifyError(camOne.getCvSink().getError())
-    #         continue
-    #     gray = cv2.cvtColor(imgOne, cv2.COLOR_BGR2GRAY)
-        
-    #     camOne.getOutputStream().putFrame(gray)
 
 if __name__ == "__main__":
     main()
