@@ -2,6 +2,7 @@
 # Import the camera server
 from cscore import CameraServer, CvSink, UsbCamera, CvSource
 import time
+import math
 from networktables import NetworkTables
 import logging
 import threading
@@ -11,27 +12,6 @@ import cv2
 
 resolution = (320, 240)
 teamNumber = 4500
-
-R = 1
-B = 1
-
-morphIteration = 0
-kernelSize = 0
-
-solidityHigh = 1.0
-solidityLow = 0
-
-extentHigh = 1.0
-extentLow = 0
-
-sidesHigh = 15
-sidesLow = 0
-sidesApprox = 0.04
-
-aspectRatio = "<" # w {> or < or N/A } h
-
-angleList = []
-angleTolerance = 10
 
 class CVThread(threading.Thread):
     def __init__(self, name, camera, sd):
@@ -45,10 +25,43 @@ class CVThread(threading.Thread):
 
     def run(self):
         while True:
-            time, img = self.camera.getFrame(self.imgBase)
+            angle = 0
+            center = [0, 0]
+            time, frame = self.camera.getFrame(self.imgBase)
             if time == 0:
                 self.camera.getOutputStream().notifyError(self.camera.getCvSink().getError())
                 continue
+            
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            ret,th1 = cv2.threshold(gray,150,255,cv2.THRESH_BINARY)
+
+            _, cnts, _ = cv2.findContours(th1, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            if len(cnts) > 0: 
+                target = max(cnts, key = cv2.contourArea)
+                if len(target) >= 5:
+                    (x,y),(MA,ma),angle = cv2.fitEllipse(target)
+                    if angle <= 180 and angle >= 90:
+                        angle = angle - 180
+                    M = cv2.moments(target)
+                    x,y,w,h = cv2.boundingRect(target)
+                    if M['m00'] != 0:
+                        cx = int(M['m10']/M['m00'])
+                        cy = int(M['m01']/M['m00'])
+                        center = [cx, cy]
+                        orientationRad = (angle+270) * (math.pi / 180)
+                        length = math.sqrt(w*w + h*h)/3
+                        cv2.line(frame,(cx,cy),(int(cx+length*math.cos(orientationRad)),int(cy+length*math.sin(orientationRad))),(255,0,0),2)
+                        # height, width = frame.shape[:2]
+                    # arcLength = 2 * math.pi * (rR) * (angle / 360)
+                    # encVal = (1024 * rR * (angle)) / (45 * dW)
+                    # cv2.putText(frame, str(round(arcLength, 2)), (0, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+                    # cv2.putText(frame, str(round(encVal, 2)), (0, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+                    cv2.putText(frame, str("({},{})".format(center[0], center[1])), (0, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+                    cv2.putText(frame, str(int(angle)), (cx, cy), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 1, cv2.LINE_AA)
+
+            self.sd.putNumber("rPI_angle", angle)
+            self.sd.putNumberArray("rPI_center", center)
+            self.camera.getOutputStream().putFrame(frame)
     
     # Returns the solidity of a contour (ratio of area to convex hull)
     def getSolidity(self, cnt):
@@ -75,31 +88,31 @@ class CVThread(threading.Thread):
             return float(w)/h
         return None
     
-    def getOrientation(self, cnt):
-        if (len(cnt) >= 5):
-            (x, y),(MA, ma),angle = cv2.fitEllipse(cnt)
-            return angle
-        return None
+    # def getOrientation(self, cnt):
+    #     if (len(cnt) >= 5):
+    #         (x, y),(MA, ma),angle = cv2.fitEllipse(cnt)
+    #         return angle
+    #     return None
     
-    # Returns an estimate of the number of sides a shape has
-    def getSides(self, cnt):
-        epsilon = sidesApprox*cv2.arcLength(cnt,True)
-        approx = cv2.approxPolyDP(cnt,epsilon,True)
-        return len(approx)
+    # # Returns an estimate of the number of sides a shape has
+    # def getSides(self, cnt):
+    #     epsilon = sidesApprox*cv2.arcLength(cnt,True)
+    #     approx = cv2.approxPolyDP(cnt,epsilon,True)
+    #     return len(approx)
     
-    # Determines if an angle is valid based on the list and tolerance value
-    def validAngle(self, orientation):
-        try:
-            if len(angleList) >= 1:
-                for angle in angleList:
-                    if abs(angle - orientation) <= angleTolerance:
-                        return True
-                return False
-            return True
-        except ValueError:
-            return True
-        except TypeError:
-            return True
+    # # Determines if an angle is valid based on the list and tolerance value
+    # def validAngle(self, orientation):
+    #     try:
+    #         if len(angleList) >= 1:
+    #             for angle in angleList:
+    #                 if abs(angle - orientation) <= angleTolerance:
+    #                     return True
+    #             return False
+    #         return True
+    #     except ValueError:
+    #         return True
+    #     except TypeError:
+    #         return True
 
 class USBCamera:
     def __init__(self, port, instance: CameraServer, streamName):
