@@ -5,30 +5,30 @@ import time
 from networktables import NetworkTables
 import logging
 import threading
+import math
 import numpy as np
 import cv2
 
 resolution = (320, 240)
 teamNumber = 4500
 
-bh = 255
-bl = 85
-gh = 255
-gl = 62
-rh = 255
-rl = 0
+R = 1
+B = 1
+
+morphIteration = 0
+kernelSize = 0
 
 solidityHigh = 1.0
 solidityLow = 0
 
 extentHigh = 1.0
-extentLow = .36
+extentLow = 0
 
 sidesHigh = 15
 sidesLow = 0
 sidesApprox = 0.04
 
-aspectRatio = ">" # w {> or < or N/A } h
+aspectRatio = "<" # w {> or < or N/A } h
 
 angleList = []
 angleTolerance = 10
@@ -42,6 +42,7 @@ class CVThread(threading.Thread):
         self.sd = sd
         self.imgBase = np.zeros(shape=(resolution[1], resolution[0], 3), dtype=np.uint8)
     
+
     def run(self):
         while True:
             time, img = self.camera.getFrame(self.imgBase)
@@ -49,40 +50,50 @@ class CVThread(threading.Thread):
                 self.camera.getOutputStream().notifyError(self.camera.getCvSink().getError())
                 continue
             frame_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            kernel = np.ones((kernelSize,kernelSize),np.uint8)
 
-            # highLimitRGB = np.array([rh, gh, bh])
-            # lowLimitRGB = np.array([rl, gl, bl])
-            # frame_mask = cv2.inRange(frame_hsv, lowLimitRGB, highLimitRGB)
+            (cb, cg, cr) = cv2.split(img)
+            # bluePlusRed = cv2.addWeighted(cb, self.channelB[1] / 100.0, cr, self.channelR[1] / 100.0, 0.0)
+            # imageOut = cv2.subtract(cg, bluePlusRed)
+            bluePlusRed = cv2.addWeighted(cg, B / 100.0, cr, R / 100.0, 0.0)
+            imageOut = cv2.subtract(cb, bluePlusRed)
 
-            # _, contours, _ = cv2.findContours(frame_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            erosion = cv2.erode(imageOut,kernel,iterations = morphIteration)
+            dialate = cv2.erode(erosion,kernel,iterations = morphIteration)
 
-            # for cnt in contours:
-            #     solidity = self.getSolidity(cnt)
-            #     extent = self.getExtent(cnt)
-            #     aspect = self.getAspectRatio(cnt)
-            #     orientation = self.getOrientation(cnt)
-            #     sides = self.getSides(cnt)
-            #     validAngle = self.validAngle(orientation)
-            #     if solidityLow <= solidity <= solidityHigh:
-            #         if extentLow <= extent <= extentHigh:
-            #             if sidesLow <= sides <= sidesHigh:
-            #                 if validAngle:
-            #                     contourDrawn = False
-            #                     if aspectRatio == ">" and aspect > 1:
-            #                         cv2.drawContours(img, cnt, -1, (0, 0, 255), 2) 
-            #                         contourDrawn = True
-            #                     elif aspectRatio == "<" and aspect < 1:
-            #                         cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
-            #                         contourDrawn = True
-            #                     elif aspectRatio == "N/A":
-            #                         cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
-            #                         contourDrawn = True
-                                
-            #                     # if contourDrawn and orientation is not None:
-            #                             # drawAngles(cnt, img, orientation)
-            # # gray = cv2.cvtColor(imgOne, cv2.COLOR_BGR2GRAY)
-            self.sd.putNumberArray("CVData", [1, 2])
-            self.camera.getOutputStream().putFrame(img)
+            thresholdVal,th2 = cv2.threshold(dialate,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+            
+            _, contours, _ = cv2.findContours(th2, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
+            passedCnt = []
+            for cnt in contours:
+                solidity = self.getSolidity(cnt)
+                extent = self.getExtent(cnt)
+                aspect = self.getAspectRatio(cnt)
+                orientation = self.getOrientation(cnt)
+                sides = self.getSides(cnt)
+                validAngle = self.validAngle(orientation)
+                area = cv2.contourArea(cnt)
+
+                if solidityLow <= solidity <= solidityHigh:
+                    if extentLow <= extent <= extentHigh:
+                        if sidesLow <= sides <= sidesHigh:
+                            contourDrawn = False
+                            if aspectRatio == ">" and aspect > 1:
+                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2) 
+                                contourDrawn = True
+                            elif aspectRatio == "<" and aspect < 1:
+                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                                contourDrawn = True
+                            elif aspectRatio == "N/A":
+                                cv2.drawContours(img, cnt, -1, (0, 0, 255), 2)
+                                contourDrawn = True
+                                        
+                            if contourDrawn:
+                                passedCnt.append(cnt)
+
+            self.yearlyCode(img, passedCnt)
+            rgb_frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
     # Returns the solidity of a contour (ratio of area to convex hull)
     def getSolidity(self, cnt):
